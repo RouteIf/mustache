@@ -211,6 +211,7 @@ var tests = []Test{
 	{`hello {{a[0]}}`, map[string]any{"a": []string{"a", "b"}}, "hello a", nil},
 	{`hello {{a[1]}}`, map[string]any{"a": []string{"a", "b"}}, "hello b", nil},
 	{`hello {{a[2]}}`, map[string]any{"a": []string{"a", "b"}}, "hello ", nil},
+	{`hello {{a.length}}`, map[string]any{"a": []string{"a", "b"}}, "hello 2", nil},
 	{`hello {{b[0].c}}`, map[string]any{"b": []any{map[string]any{
 		"c": "ddd",
 	}}}, "hello ddd", nil},

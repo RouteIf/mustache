@@ -537,6 +537,10 @@ Outer:
 				}
 				continue Outer
 			case reflect.Slice:
+				if name == "length" || name == "len" {
+					return reflect.ValueOf(av.Len()), nil
+				}
+
 				index, err := strconv.Atoi(name)
 				if err != nil {
 					return v, err
