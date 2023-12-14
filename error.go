@@ -15,6 +15,7 @@ const (
 	ErrInterleavedClosingTag ErrorCode = "interleaved_closing_tag"
 	ErrInvalidMetaTag        ErrorCode = "invalid_meta_tag"
 	ErrUnmatchedCloseTag     ErrorCode = "unmatched_close_tag"
+	ErrInvalidVariable       ErrorCode = "invalid_variable"
 )
 
 // ParseError represents an error during the parsing
@@ -45,6 +46,8 @@ func (e ParseError) defaultMessage() string {
 		return "Invalid meta tag"
 	case ErrUnmatchedCloseTag:
 		return "unmatched close tag"
+	case ErrInvalidVariable:
+		return "invalid variable"
 	default:
 		return "unknown error"
 	}

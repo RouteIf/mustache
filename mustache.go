@@ -480,6 +480,19 @@ func lookup(contextChain []interface{}, name string, allowMissing bool) (reflect
 		if err != nil {
 			return v, err
 		}
+		if startsWithNumber(parts[1]) {
+			return v, newErrorWithReason(0, ErrInvalidVariable, name)
+		}
+
+		return lookup([]interface{}{v}, parts[1], allowMissing)
+	} else if strings.Contains(name, "[") && strings.Contains(name, "]") {
+		// array notation
+		parts := strings.SplitN(name, "[", 2)
+		parts[1] = strings.TrimSuffix(parts[1], "]")
+		v, err := lookup(contextChain, parts[0], allowMissing)
+		if err != nil {
+			return v, err
+		}
 		return lookup([]interface{}{v}, parts[1], allowMissing)
 	}
 
@@ -523,6 +536,16 @@ Outer:
 					return ret, nil
 				}
 				continue Outer
+			case reflect.Slice:
+				index, err := strconv.Atoi(name)
+				if err != nil {
+					return v, err
+				}
+				ret := av.Index(index)
+				if ret.IsValid() {
+					return ret, nil
+				}
+				continue Outer
 			default:
 				continue Outer
 			}
@@ -532,6 +555,14 @@ Outer:
 		return reflect.Value{}, nil
 	}
 	return reflect.Value{}, fmt.Errorf("missing variable %q", name)
+}
+
+func startsWithNumber(s string) bool {
+	if len(s) > 0 && s[0] >= '0' && s[0] <= '9' {
+		return true
+	}
+
+	return false
 }
 
 func isEmpty(v reflect.Value) bool {

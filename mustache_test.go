@@ -206,6 +206,14 @@ var tests = []Test{
 	{`"{{{person.name}}}" == "{{#person}}{{{name}}}{{/person}}"`, map[string]interface{}{"person": map[string]string{"name": "Joe"}}, `"Joe" == "Joe"`, nil},
 	{`"{{a.b.c.d.e.name}}" == "Phil"`, map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": map[string]interface{}{"d": map[string]interface{}{"e": map[string]string{"name": "Phil"}}}}}}, `"Phil" == "Phil"`, nil},
 	{`"{{#a}}{{b.c.d.e.name}}{{/a}}" == "Phil"`, map[string]interface{}{"a": map[string]interface{}{"b": map[string]interface{}{"c": map[string]interface{}{"d": map[string]interface{}{"e": map[string]string{"name": "Phil"}}}}}, "b": map[string]interface{}{"c": map[string]interface{}{"d": map[string]interface{}{"e": map[string]string{"name": "Wrong"}}}}}, `"Phil" == "Phil"`, nil},
+
+	// array tests
+	{`hello {{a[0]}}`, map[string]any{"a": []string{"a", "b"}}, "hello a", nil},
+	{`hello {{a[1]}}`, map[string]any{"a": []string{"a", "b"}}, "hello b", nil},
+	{`hello {{a[2]}}`, map[string]any{"a": []string{"a", "b"}}, "hello ", nil},
+	{`hello {{b[0].c}}`, map[string]any{"b": []any{map[string]any{
+		"c": "ddd",
+	}}}, "hello ddd", nil},
 }
 
 func TestBasic(t *testing.T) {
