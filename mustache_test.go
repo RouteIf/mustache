@@ -789,3 +789,28 @@ func TestFormatting(t *testing.T) {
 		t.Errorf("expected BB1 got %s", output)
 	}
 }
+
+type CallbackHandler struct {
+}
+
+func (h *CallbackHandler) Lookup(name string) (any, error) {
+	switch name {
+	case "a":
+		return "AA", nil
+	case "b":
+		return "BB", nil
+	}
+
+	return nil, fmt.Errorf("unknown variable %s", name)
+}
+
+func TestCallbackInterface(t *testing.T) {
+	output, err := Render("{{a}}", &CallbackHandler{})
+	if err != nil {
+		t.Error(err)
+	}
+	if output != "AA" {
+		t.Errorf("expected AA got %s", output)
+	}
+
+}

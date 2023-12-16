@@ -31,6 +31,11 @@ type EscapeFunc func(text string) string
 // FormatterFunc is used for formatting values in templates.
 type FormatterFunc func(any) (string, error)
 
+// CallbackInterface provides a way to lookup values in a custom way.
+type CallbackInterface interface {
+	Lookup(name string) (interface{}, error)
+}
+
 // A TagType represents the specific type of mustache tag that a Tag
 // represents. The zero TagType is not a valid type.
 type TagType uint
@@ -519,6 +524,21 @@ Outer:
 				for i := 0; i < n; i++ {
 					m := typ.Method(i)
 					mtyp := m.Type
+
+					// If the method is called Lookup and has the right signature, use it
+					if m.Name == "Lookup" && mtyp.NumIn() == 2 && mtyp.NumOut() == 2 {
+						// The variable is a struct that implements the Lookup method
+						// Lookup(name string) (interface{}, error)
+						ret := v.Method(i).Call([]reflect.Value{reflect.ValueOf(name)})
+
+						// If the method returns an error, return the error
+						if !ret[1].IsNil() {
+							return v, ret[1].Interface().(error)
+						}
+
+						// Otherwise, return the value
+						return ret[0], nil
+					}
 
 					if m.Name == name && mtyp.NumIn() == 1 {
 						return v.Method(i).Call(nil)[0], nil
