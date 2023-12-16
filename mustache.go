@@ -28,6 +28,9 @@ type LambdaFunc func(text string, render RenderFunc) (string, error)
 // EscapeFunc is used for escaping non-raw values in templates.
 type EscapeFunc func(text string) string
 
+// FormatterFunc is used for formatting values in templates.
+type FormatterFunc func(any) (string, error)
+
 // A TagType represents the specific type of mustache tag that a Tag
 // represents. The zero TagType is not a valid type.
 type TagType uint
@@ -102,15 +105,16 @@ type partialElement struct {
 
 // Template represents a compilde mustache template
 type Template struct {
-	data     string
-	otag     string
-	ctag     string
-	p        int
-	curline  int
-	elems    []interface{}
-	forceRaw bool
-	partial  PartialProvider
-	escape   EscapeFunc
+	data      string
+	otag      string
+	ctag      string
+	p         int
+	curline   int
+	elems     []interface{}
+	forceRaw  bool
+	partial   PartialProvider
+	escape    EscapeFunc
+	formatter FormatterFunc
 }
 
 // Tags returns the mustache tags for the given template
@@ -121,6 +125,10 @@ func (tmpl *Template) Tags() []Tag {
 // Escape sets custom escape function. By-default it is HTMLEscape.
 func (tmpl *Template) Escape(fn EscapeFunc) {
 	tmpl.escape = fn
+}
+
+func (tmpl *Template) Formatter(fn FormatterFunc) {
+	tmpl.formatter = fn
 }
 
 func extractTags(elems []interface{}) []Tag {
@@ -511,6 +519,7 @@ Outer:
 				for i := 0; i < n; i++ {
 					m := typ.Method(i)
 					mtyp := m.Type
+
 					if m.Name == name && mtyp.NumIn() == 1 {
 						return v.Method(i).Call(nil)[0], nil
 					}
@@ -731,7 +740,13 @@ func (tmpl *Template) renderElement(element interface{}, contextChain []interfac
 		}
 
 		if val.IsValid() {
-			if elem.raw {
+			if tmpl.formatter != nil {
+				s, err := tmpl.formatter(val.Interface())
+				if err != nil {
+					return err
+				}
+				_, _ = buf.Write([]byte(s))
+			} else if elem.raw {
 				fmt.Fprint(buf, val.Interface())
 			} else {
 				s := fmt.Sprint(val.Interface())
@@ -827,6 +842,19 @@ func ParseStringRaw(data string, forceRaw bool) (*Template, error) {
 	return ParseStringPartialsRaw(data, partials, forceRaw)
 }
 
+// ParseStringWithFormatter compiles a mustache template string. The resulting output can
+// be used to efficiently render the template multiple times with different data
+// sources.
+// The formatter function is used to format the output of the template.
+func ParseStringWithFormatter(data string, formatter FormatterFunc) (*Template, error) {
+	cwd := os.Getenv("CWD")
+	partials := &FileProvider{
+		Paths: []string{cwd, " "},
+	}
+
+	return ParseStringPartialsWithFormatter(data, partials, formatter)
+}
+
 // ParseStringPartials compiles a mustache template string, retrieving any
 // required partials from the given provider. The resulting output can be used
 // to efficiently render the template multiple times with different data
@@ -840,7 +868,24 @@ func ParseStringPartials(data string, partials PartialProvider) (*Template, erro
 // to efficiently render the template multiple times with different data
 // sources.
 func ParseStringPartialsRaw(data string, partials PartialProvider, forceRaw bool) (*Template, error) {
-	tmpl := Template{data, "{{", "}}", 0, 1, []interface{}{}, forceRaw, partials, template.HTMLEscapeString}
+	tmpl := Template{data, "{{", "}}", 0, 1, []interface{}{}, forceRaw, partials, template.HTMLEscapeString, nil}
+	err := tmpl.parse()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &tmpl, err
+}
+
+// ParseStringPartialsWithFormatter compiles a mustache template string, retrieving any
+// required partials from the given provider. The resulting output can be used
+// to efficiently render the template multiple times with different data
+// sources.
+// The formatter function is used to format the output of the template.
+
+func ParseStringPartialsWithFormatter(data string, partials PartialProvider, formatter FormatterFunc) (*Template, error) {
+	tmpl := Template{data, "{{", "}}", 0, 1, []interface{}{}, true, partials, template.HTMLEscapeString, formatter}
 	err := tmpl.parse()
 
 	if err != nil {
@@ -870,6 +915,20 @@ func ParseFilePartials(filename string, partials PartialProvider) (*Template, er
 	return ParseFilePartialsRaw(filename, false, partials)
 }
 
+// ParseFileWithFormatter loads a mustache template string from a file and compiles it. The
+// resulting output can be used to efficiently render the template multiple
+// times with different data sources.
+// The formatter function is used to format the output of the template.
+
+func ParseFileWithFormatter(filename string, formatter FormatterFunc) (*Template, error) {
+	dirname, _ := path.Split(filename)
+	partials := &FileProvider{
+		Paths: []string{dirname, " "},
+	}
+
+	return ParseFilePartialsWithFormatter(filename, partials, formatter)
+}
+
 // ParseFilePartialsRaw loads a mustache template string from a file, retrieving
 // any required partials from the given provider, and compiles it. The resulting
 // output can be used to efficiently render the template multiple times with
@@ -880,7 +939,28 @@ func ParseFilePartialsRaw(filename string, forceRaw bool, partials PartialProvid
 		return nil, err
 	}
 
-	tmpl := Template{string(data), "{{", "}}", 0, 1, []interface{}{}, forceRaw, partials, template.HTMLEscapeString}
+	tmpl := Template{string(data), "{{", "}}", 0, 1, []interface{}{}, forceRaw, partials, template.HTMLEscapeString, nil}
+	err = tmpl.parse()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &tmpl, nil
+}
+
+// ParseFilePartialsWithFormatter loads a mustache template string from a file, retrieving
+// any required partials from the given provider, and compiles it. The resulting
+// output can be used to efficiently render the template multiple times with
+// different data sources.
+// The formatter function is used to format the output of the template.
+func ParseFilePartialsWithFormatter(filename string, partials PartialProvider, formatter FormatterFunc) (*Template, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	tmpl := Template{string(data), "{{", "}}", 0, 1, []interface{}{}, true, partials, template.HTMLEscapeString, formatter}
 	err = tmpl.parse()
 
 	if err != nil {
@@ -901,6 +981,14 @@ func Render(data string, context ...interface{}) (string, error) {
 // output.
 func RenderRaw(data string, forceRaw bool, context ...interface{}) (string, error) {
 	return RenderPartialsRaw(data, nil, forceRaw, context...)
+}
+
+// RenderPartialsWithFormatter compiles a mustache template string and uses the the given partial
+// provider and data source - generally a map or struct - to render the template
+// and return the output.
+// The formatter function is used to format the output of the template.
+func RenderWithFormatter(data string, formatter FormatterFunc, context ...interface{}) (string, error) {
+	return RenderPartialsWithFormatter(data, nil, formatter, context...)
 }
 
 // RenderPartials compiles a mustache template string and uses the the given partial
@@ -924,6 +1012,25 @@ func RenderPartialsRaw(data string, partials PartialProvider, forceRaw bool, con
 	if err != nil {
 		return "", err
 	}
+	return tmpl.Render(context...)
+}
+
+// RenderPartialsWithFormatter compiles a mustache template string and uses the the given partial
+// provider and data source - generally a map or struct - to render the template
+// and return the output.
+// The formatter function is used to format the output of the template.
+func RenderPartialsWithFormatter(data string, partials PartialProvider, formatter FormatterFunc, context ...interface{}) (string, error) {
+	var tmpl *Template
+	var err error
+	if partials == nil {
+		tmpl, err = ParseStringWithFormatter(data, formatter)
+	} else {
+		tmpl, err = ParseStringPartialsWithFormatter(data, partials, formatter)
+	}
+	if err != nil {
+		return "", err
+	}
+	tmpl.formatter = formatter
 	return tmpl.Render(context...)
 }
 

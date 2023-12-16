@@ -745,3 +745,47 @@ func TestCustomEscape(t *testing.T) {
 		t.Errorf("expected %s, got %v", expected, value)
 	}
 }
+
+func TestFormatting(t *testing.T) {
+	formatter := func(v any) (string, error) {
+		return fmt.Sprintf("AA%v", v), nil
+	}
+	output, err := RenderWithFormatter("{{a}}", formatter, map[string]any{"a": 1})
+	if err != nil {
+		t.Error(err)
+	}
+	if output != "AA1" {
+		t.Errorf("expected AA1 got %s", output)
+	}
+
+	tmpl, err := ParseStringWithFormatter("{{a}}", formatter)
+	if err != nil {
+		t.Error(err)
+	}
+
+	var buf bytes.Buffer
+	err = tmpl.FRender(&buf, map[string]any{"a": 1})
+	if err != nil {
+		t.Error(err)
+	}
+
+	output = buf.String()
+	if output != "AA1" {
+		t.Errorf("expected AA1 got %s", output)
+	}
+
+	tmpl.Formatter(func(a any) (string, error) {
+		return fmt.Sprintf("BB%v", a), nil
+	})
+
+	buf.Reset()
+	err = tmpl.FRender(&buf, map[string]any{"a": 1})
+	if err != nil {
+		t.Error(err)
+	}
+
+	output = buf.String()
+	if output != "BB1" {
+		t.Errorf("expected BB1 got %s", output)
+	}
+}
