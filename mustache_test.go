@@ -814,3 +814,64 @@ func TestCallbackInterface(t *testing.T) {
 	}
 
 }
+
+func TestJsonTags(t *testing.T) {
+	type Data struct {
+		A string `json:"-"`
+		B string `json:"b"`
+		C string
+	}
+
+	data := Data{
+		A: "a",
+		B: "b",
+		C: "c",
+	}
+	output, err := Render("{{a}}", data)
+	if err != nil {
+		t.Error(err)
+	}
+	output2, err := Render("{{A}}", data)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if output != "" {
+		t.Errorf("expected \"\" got %s", output)
+	}
+	if output2 != "a" {
+		t.Errorf("expected a got %s", output2)
+	}
+
+	output, err = Render("{{b}}", data)
+	if err != nil {
+		t.Error(err)
+	}
+	output2, err = Render("{{B}}", data)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if output != "b" {
+		t.Errorf("expected b got %s", output)
+	}
+	if output2 != "b" {
+		t.Errorf("expected b got %s", output2)
+	}
+
+	output, err = Render("{{c}}", data)
+	if err != nil {
+		t.Error(err)
+	}
+	output2, err = Render("{{C}}", data)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if output != "" {
+		t.Errorf("expected \"\" got %s", output)
+	}
+	if output2 != "c" {
+		t.Errorf("expected c got %s", output2)
+	}
+}

@@ -558,6 +558,22 @@ Outer:
 				if ret.IsValid() {
 					return ret, nil
 				}
+				// try to find field by json tag
+				ret = av.FieldByNameFunc(func(fieldName string) bool {
+					field, _ := av.Type().FieldByName(fieldName)
+					// if field doesn't have json tag, skip it
+					// if json tag is "-", skip it
+					jsonTag := field.Tag.Get("json")
+					if jsonTag == "" || jsonTag == "-" {
+						return false
+					}
+					// strip omitempty from json tag
+					jsonTag = strings.Split(jsonTag, ",")[0]
+					return jsonTag == name
+				})
+				if ret.IsValid() {
+					return ret, nil
+				}
 				continue Outer
 			case reflect.Map:
 				ret := av.MapIndex(reflect.ValueOf(name))
