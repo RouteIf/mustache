@@ -485,10 +485,8 @@ func (tmpl *Template) parse() error {
 func lookupAllowMissing(contextChain []interface{}, name string, allowMissing bool) (reflect.Value, error) {
 	value, err := lookup(contextChain, nil, name)
 	if err != nil && allowMissing {
-		if parseError, ok := err.(ParseError); ok {
-			if parseError.Code == ErrMissingVariable {
-				return reflect.Value{}, nil
-			}
+		if IsMissingVariableError(err) {
+			return reflect.Value{}, nil
 		}
 	}
 
@@ -759,7 +757,7 @@ Outer:
 		}
 	}
 
-	return reflect.Value{}, newErrorWithReason(0, ErrMissingVariable, name)
+	return reflect.Value{}, newMissingVariableError(name)
 }
 
 func unwrap(v reflect.Value) reflect.Value {

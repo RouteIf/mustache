@@ -16,7 +16,6 @@ const (
 	ErrInvalidMetaTag        ErrorCode = "invalid_meta_tag"
 	ErrUnmatchedCloseTag     ErrorCode = "unmatched_close_tag"
 	ErrInvalidVariable       ErrorCode = "invalid_variable"
-	ErrMissingVariable       ErrorCode = "missing_variable"
 )
 
 // ParseError represents an error during the parsing
@@ -49,8 +48,6 @@ func (e ParseError) defaultMessage() string {
 		return "unmatched close tag"
 	case ErrInvalidVariable:
 		return "invalid variable"
-	case ErrMissingVariable:
-		return fmt.Sprintf("missing variable: %q", e.Reason)
 	default:
 		return "unknown error"
 	}
@@ -68,5 +65,24 @@ func newErrorWithReason(line int, code ErrorCode, reason string) ParseError {
 		Line:   line,
 		Code:   code,
 		Reason: reason,
+	}
+}
+
+type MissingVariableError struct {
+	Name string
+}
+
+func IsMissingVariableError(err error) bool {
+	_, ok := err.(MissingVariableError)
+	return ok
+}
+
+func (e MissingVariableError) Error() string {
+	return fmt.Sprintf("missing variable %q", e.Name)
+}
+
+func newMissingVariableError(name string) MissingVariableError {
+	return MissingVariableError{
+		Name: name,
 	}
 }
