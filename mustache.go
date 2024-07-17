@@ -519,7 +519,7 @@ func lookup(contextChain []interface{}, left any, name string) (reflect.Value, e
 			return v, err
 		}
 		if startsWithNumber(parts[1]) {
-			return v, newErrorWithReason(0, ErrInvalidVariable, name)
+			return v, newInvalidVariableError(name)
 		}
 
 		return lookup(contextChain, v, parts[1])
@@ -568,12 +568,12 @@ func lookup(contextChain []interface{}, left any, name string) (reflect.Value, e
 		if v.Kind() == reflect.Map {
 			v = v.MapIndex(indexValue)
 			if !v.IsValid() {
-				return v, newErrorWithReason(0, ErrInvalidVariable, name)
+				return v, newInvalidVariableError(name)
 			}
 		} else if v.Kind() == reflect.Array || v.Kind() == reflect.Slice {
 			if indexValue.Kind() != reflect.Int {
 				if !indexValue.CanConvert(reflect.TypeOf(int(0))) {
-					return v, newErrorWithReason(0, ErrInvalidVariable, name)
+					return v, newInvalidVariableError(name)
 				}
 
 				indexValue = indexValue.Convert(reflect.TypeOf(int(0)))
@@ -581,7 +581,7 @@ func lookup(contextChain []interface{}, left any, name string) (reflect.Value, e
 
 			v = v.Index(int(indexValue.Int()))
 		} else {
-			return v, newErrorWithReason(0, ErrInvalidVariable, name)
+			return v, newInvalidVariableError(name)
 		}
 
 		if rest == "" {
@@ -615,7 +615,7 @@ func lookup(contextChain []interface{}, left any, name string) (reflect.Value, e
 		v = unwrap(v)
 
 		if v.Kind() != reflect.Func {
-			return v, newErrorWithReason(0, ErrInvalidVariable, name)
+			return v, newInvalidVariableError(name)
 		}
 
 		// call the function

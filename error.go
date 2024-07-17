@@ -86,3 +86,22 @@ func newMissingVariableError(name string) MissingVariableError {
 		Name: name,
 	}
 }
+
+type InvalidVariableError struct {
+	Name string
+}
+
+func IsInvalidVariableError(err error) bool {
+	_, ok := err.(InvalidVariableError)
+	return ok
+}
+
+func (e InvalidVariableError) Error() string {
+	return fmt.Sprintf("invalid variable %q", e.Name)
+}
+
+func newInvalidVariableError(name string) InvalidVariableError {
+	return InvalidVariableError{
+		Name: name,
+	}
+}
