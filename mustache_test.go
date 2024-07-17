@@ -211,10 +211,20 @@ var tests = []Test{
 	{`hello {{a[0]}}`, map[string]any{"a": []string{"a", "b"}}, "hello a", nil},
 	{`hello {{a[1]}}`, map[string]any{"a": []string{"a", "b"}}, "hello b", nil},
 	{`hello {{a[2]}}`, map[string]any{"a": []string{"a", "b"}}, "hello ", nil},
+	{`hello {{a[x]}}`, map[string]any{"a": []string{"a", "b"}, "x": 1}, "hello b", nil},
 	{`hello {{a.length}}`, map[string]any{"a": []string{"a", "b"}}, "hello 2", nil},
 	{`hello {{b[0].c}}`, map[string]any{"b": []any{map[string]any{
 		"c": "ddd",
 	}}}, "hello ddd", nil},
+	{`hello {{b[x].c}}`, map[string]any{"b": []any{map[string]any{
+		"c": "ddd",
+	}}, "x": 0}, "hello ddd", nil},
+
+	// compound tests
+	{`hello {{a.b[0].c}}`, map[string]any{"a": map[string]any{"b": []any{map[string]any{
+		"c": "ddd",
+	}}}}, "hello ddd", nil},
+	{`hello {{a[x]}}`, map[string]any{"a": []string{"a", "b"}, "x": 0}, "hello a", nil},
 }
 
 func TestBasic(t *testing.T) {
@@ -873,5 +883,132 @@ func TestJsonTags(t *testing.T) {
 	}
 	if output2 != "c" {
 		t.Errorf("expected c got %s", output2)
+	}
+}
+
+func TestLiteral(t *testing.T) {
+	type Data struct {
+		A string
+		B string
+	}
+	output, err := Render("{{\"hello\"}}", &Data{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	if output != "hello" {
+		t.Errorf("expected hello got %s", output)
+	}
+
+	output, err = Render("{{ 'hello' }}", &Data{})
+	if err != nil {
+		t.Error(err)
+	}
+
+	if output != "hello" {
+		t.Errorf("expected hello got %s", output)
+	}
+}
+
+type GeneralFunctionsHandler struct {
+}
+
+func (h *GeneralFunctionsHandler) Lookup(name string) (any, error) {
+	switch name {
+	case "a":
+		return "AA", nil
+	case "b":
+		return 0, nil
+	}
+
+	return nil, fmt.Errorf("unknown variable %s", name)
+}
+
+func (h *GeneralFunctionsHandler) GetStr() any {
+	return "AA"
+}
+
+func TestGeneralFunctionsStruct(t *testing.T) {
+	output, err := Render("{{Lookup('a')}}", &GeneralFunctionsHandler{})
+	if err != nil {
+		t.Error(err)
+	}
+	if output != "AA" {
+		t.Errorf("expected AA got %s", output)
+	}
+
+	output, err = Render("{{Lookup('b')}}", &GeneralFunctionsHandler{})
+	if err != nil {
+		t.Error(err)
+	}
+	if output != "0" {
+		t.Errorf("expected 0 got %s", output)
+	}
+	output, err = Render("{{GetStr()}}", &GeneralFunctionsHandler{})
+	if err != nil {
+		t.Error(err)
+	}
+	if output != "AA" {
+		t.Errorf("expected AA got %s", output)
+	}
+
+}
+
+func TestGeneralFunctionsMap(t *testing.T) {
+	output, err := Render("{{getValue('a')[getZero()]}}", map[string]any{
+		"getValue": func(name string) (any, error) {
+			if name == "a" {
+				return []any{"AA"}, nil
+			}
+
+			return nil, fmt.Errorf("unknown variable %s", name)
+		},
+		"getZero": func() any {
+			return 0
+		}})
+	if err != nil {
+		t.Error(err)
+	}
+	if output != "AA" {
+		t.Errorf("expected AA got %s", output)
+	}
+
+	output, err = Render("{{getValue('a').length}}", map[string]any{"getValue": func(name string) (any, error) {
+		if name == "a" {
+			return []any{"AA"}, nil
+		}
+
+		return nil, fmt.Errorf("unknown variable %s", name)
+	}})
+	if err != nil {
+		t.Error(err)
+	}
+	if output != "1" {
+		t.Errorf("expected 1 got %s", output)
+	}
+
+	output, err = Render("{{getValue('b')}}", map[string]any{"getValue": func(name string) any {
+		if name == "b" {
+			return 0
+		}
+
+		return nil
+	}})
+	if err != nil {
+		t.Error(err)
+	}
+	if output != "0" {
+		t.Errorf("expected AA got %s", output)
+	}
+
+	_, err = Render("{{getValue('b').length}}", map[string]any{"getValue": func(name string) (any, error) {
+		if name == "a" {
+			return []any{"AA"}, nil
+		}
+
+		return nil, fmt.Errorf("unknown variable %s", name)
+	}})
+	if err == nil {
+		t.Error("err expected")
 	}
 }
