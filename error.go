@@ -16,6 +16,7 @@ const (
 	ErrInvalidMetaTag        ErrorCode = "invalid_meta_tag"
 	ErrUnmatchedCloseTag     ErrorCode = "unmatched_close_tag"
 	ErrInvalidVariable       ErrorCode = "invalid_variable"
+	ErrMissingVariable       ErrorCode = "missing_variable"
 )
 
 // ParseError represents an error during the parsing
@@ -48,6 +49,8 @@ func (e ParseError) defaultMessage() string {
 		return "unmatched close tag"
 	case ErrInvalidVariable:
 		return "invalid variable"
+	case ErrMissingVariable:
+		return fmt.Sprintf("missing variable: %q", e.Reason)
 	default:
 		return "unknown error"
 	}

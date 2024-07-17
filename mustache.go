@@ -482,9 +482,22 @@ func (tmpl *Template) parse() error {
 	}
 }
 
+func lookupAllowMissing(contextChain []interface{}, name string, allowMissing bool) (reflect.Value, error) {
+	value, err := lookup(contextChain, nil, name)
+	if err != nil && allowMissing {
+		if parseError, ok := err.(ParseError); ok {
+			if parseError.Code == ErrMissingVariable {
+				return reflect.Value{}, nil
+			}
+		}
+	}
+
+	return value, err
+}
+
 // Evaluate interfaces and pointers looking for a value that can look up the name, via a
 // struct field, method, or map key, and return the result of the lookup.
-func lookup(contextChain []interface{}, left any, name string, allowMissing bool) (reflect.Value, error) {
+func lookup(contextChain []interface{}, left any, name string) (reflect.Value, error) {
 	//fmt.Printf("Lookup %q Left: %v\n", name, left)
 	defer func() {
 		if r := recover(); r != nil {
@@ -503,7 +516,7 @@ func lookup(contextChain []interface{}, left any, name string, allowMissing bool
 	if start == "." && name != "." && strings.Contains(name, ".") {
 		parts := strings.SplitN(name, ".", 2)
 
-		v, err := lookup(contextChain, left, parts[0], allowMissing)
+		v, err := lookup(contextChain, left, parts[0])
 		if err != nil {
 			return v, err
 		}
@@ -511,7 +524,7 @@ func lookup(contextChain []interface{}, left any, name string, allowMissing bool
 			return v, newErrorWithReason(0, ErrInvalidVariable, name)
 		}
 
-		return lookup(contextChain, v, parts[1], allowMissing)
+		return lookup(contextChain, v, parts[1])
 	} else if start == "[" && strings.Contains(name, "[") && strings.Contains(name, "]") {
 		// split into the array name and the index, and the right hand side
 		openIndex := strings.Index(name, "[")
@@ -536,7 +549,7 @@ func lookup(contextChain []interface{}, left any, name string, allowMissing bool
 		var err error
 		if arrayVariable != "" {
 			// look up the array
-			v, err = lookup(contextChain, left, arrayVariable, allowMissing)
+			v, err = lookup(contextChain, left, arrayVariable)
 			if err != nil {
 				return v, err
 			}
@@ -546,7 +559,7 @@ func lookup(contextChain []interface{}, left any, name string, allowMissing bool
 		v = unwrap(v)
 
 		// look up the index
-		indexValue, err := lookup(contextChain, nil, indexVariable, allowMissing)
+		indexValue, err := lookup(contextChain, nil, indexVariable)
 		if err != nil {
 			return v, err
 		}
@@ -577,7 +590,7 @@ func lookup(contextChain []interface{}, left any, name string, allowMissing bool
 			return v, nil
 		}
 
-		return lookup(contextChain, v, rest, allowMissing)
+		return lookup(contextChain, v, rest)
 	} else if start == "(" && strings.Contains(name, "(") && strings.Contains(name, ")") {
 		openIndex := strings.Index(name, "(")
 		closeIndex := strings.Index(name, ")")
@@ -611,7 +624,7 @@ func lookup(contextChain []interface{}, left any, name string, allowMissing bool
 		in := make([]reflect.Value, 0, len(args))
 		for _, arg := range args {
 			arg = strings.TrimSpace(arg)
-			val, err := lookup(contextChain, nil, arg, allowMissing)
+			val, err := lookup(contextChain, nil, arg)
 			if err != nil {
 				return v, err
 			}
@@ -631,16 +644,27 @@ func lookup(contextChain []interface{}, left any, name string, allowMissing bool
 			return ret[0], nil
 		}
 
-		return lookup(contextChain, ret[0], rest, allowMissing)
+		return lookup(contextChain, ret[0], rest)
 
 		// Otherwise, return the value
 		//return ret[0], nil
 	} else if (strings.HasPrefix(name, "\"") && strings.HasSuffix(name, "\"")) || (strings.HasPrefix(name, "'") && strings.HasSuffix(name, "'")) {
 		// string literal
 		return reflect.ValueOf(name[1 : len(name)-1]), nil
-	} else if val, err := strconv.ParseInt(name, 10, 64); err == nil {
+	} else if val, err := strconv.ParseInt(name, 0, 64); err == nil {
+		// integer literal
+		return reflect.ValueOf(val), nil
+	} else if val, err := strconv.ParseUint(name, 0, 64); err == nil {
+		// unsigned integer literal
 		return reflect.ValueOf(val), nil
 	} else if val, err := strconv.ParseFloat(name, 64); err == nil {
+		// float literal
+		return reflect.ValueOf(val), nil
+	} else if val, err := strconv.ParseBool(name); err == nil {
+		// boolean literal
+		return reflect.ValueOf(val), nil
+	} else if val, err := strconv.ParseComplex(name, 64); err == nil {
+		// complex literal
 		return reflect.ValueOf(val), nil
 	}
 
@@ -734,10 +758,8 @@ Outer:
 			}
 		}
 	}
-	if allowMissing {
-		return reflect.Value{}, nil
-	}
-	return reflect.Value{}, fmt.Errorf("missing variable %q", name)
+
+	return reflect.Value{}, newErrorWithReason(0, ErrMissingVariable, name)
 }
 
 func unwrap(v reflect.Value) reflect.Value {
@@ -849,7 +871,7 @@ loop:
 }
 
 func (tmpl *Template) renderSection(section *sectionElement, contextChain []interface{}, buf io.Writer) error {
-	value, err := lookup(contextChain, nil, section.name, true)
+	value, err := lookupAllowMissing(contextChain, section.name, true)
 	if err != nil {
 		return err
 	}
@@ -970,7 +992,7 @@ func (tmpl *Template) renderElement(element interface{}, contextChain []interfac
 				fmt.Printf("Panic while looking up %q: %s\n", elem.name, r)
 			}
 		}()
-		val, err := lookup(contextChain, nil, elem.name, AllowMissingVariables)
+		val, err := lookupAllowMissing(contextChain, elem.name, AllowMissingVariables)
 		if err != nil {
 			return err
 		}
